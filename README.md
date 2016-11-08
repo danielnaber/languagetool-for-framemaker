@@ -8,11 +8,11 @@ work_one.jsx is the main code of the spell-checking
 JSONstring.json is hard-coded string as we received it from language tools server.
 
 
-## Setups
+## Setup
 
 To work with plugin you need to create several symbol styles (characters tags).
-SpellChecking is the style of underlinning. SpellMessage is the style of message,
-language tools sends message on grammar. And Deault is the text style without
+SpellChecking is the style of underlinning. SpellMessage is the style of messages,
+language tools sends message on grammar. And Default is the text style without
 formating.
 
 
