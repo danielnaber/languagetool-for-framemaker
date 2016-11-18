@@ -199,6 +199,8 @@ undoSpellMenu.DefineAndAddCommand(1, "cmdSpell", "Spell", "");
 undoSpellMenu.DefineAndAddCommand(2, "cmdUndo", "Undo", "");
 UpdateMenus();
 function Command (cmd) {
+    myapp.init (app.ActiveDoc, app);
+    myapp.openJson (script_file_path + "/JSONString.json");
     if ( cmd == "1" ) {
         if ( myapp.existsJson () ) {
             myapp.matchesIterate ();
@@ -212,5 +214,3 @@ function Command (cmd) {
     }
 };
 /// END MENU
-myapp.init (doc, app);
-myapp.openJson (script_file_path + "/JSONString.json");
