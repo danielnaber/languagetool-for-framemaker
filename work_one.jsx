@@ -1,4 +1,4 @@
-﻿#include "json2.js"
+#include "json2.js"
 #include "array.js"
 
 if ( DOING_REMOVE == undefined && DOING_REMOVE_STYLE == undefined && DOING_NONE == undefined ) {
@@ -10,6 +10,16 @@ var script_file = File($.fileName);
 var script_file_path = script_file.path;
 
 var myapp = {
+    //-------------- PS++
+    logfile: function (d, a) {
+       this.f = new File ("c:\\Users\\Win7\\Documents\\log.txt");
+       this.f.open("w");
+       if (this.f.error){
+           alert ("File error:" + this.f.error + " in " + this.f.name);
+      }
+      this.f.writeln("Test");
+   },
+    //--------------
     init: function (d, a) {
         this.document = d;
         this.app = a;
@@ -125,7 +135,7 @@ var myapp = {
             var pgf = this.firstpgf, length = 0, begin = 0;
             while ( pgf.ObjectValid() ) {
                 var pgfEnd = pgf.GetText(Constants.FTI_PgfEnd);
-                if ( pgfEnd.len > 0 ) {
+                 if ( pgfEnd.len > 0 ) {
                     length += pgfEnd [0].offset;
                 }
                 if ( length >= offset ) {
@@ -154,6 +164,68 @@ var myapp = {
         }
     },
     matchesIterate: function () {
+//--------------------------  PS++ Get text from document (all text)
+        var pgfMain = this.firstpgf;
+        var TxtAll = "";
+            while ( pgfMain.ObjectValid() ) {
+                  var TxtLst = pgfMain.GetText(Constants.FTI_String);
+                  for (var i = 0; i < TxtLst.length; i += 1) {  
+                         var s = TxtLst[i].sdata; 
+                         TxtAll += s;
+                  }
+                  pgfMain = pgfMain.NextPgfInFlow;
+            }
+//--------------------------    PS++    Send text to server
+        var AllOK = false;
+        var x = new Socket();
+        var rep = "";
+        var EndOfGet = " HTTP/1.1\r\n\r\n";
+        var Url = "127.0.0.1:8081";
+        if (x.open (Url,"BINARY")) {
+           x.timeout=10;
+           var OutTxt = TxtAll;
+           //-------- PS++ Here we replace all forbiddens symbols
+           OutTxt = OutTxt.replace(/%/g, "%25");
+           OutTxt = OutTxt.replace(/\s/g, "%20");
+           OutTxt = OutTxt.replace(/\(/g, "%28");
+           OutTxt = OutTxt.replace(/)/g, "%29");
+           OutTxt = OutTxt.replace(/\\/g, "%5C");
+           OutTxt = OutTxt.replace(/\"/g, "%22");
+           OutTxt = OutTxt.replace(/\'/g, "%27");
+           //--------------
+           x.write("GET /v2/check?language=en&text=my+" + OutTxt);
+           x.write(EndOfGet);
+           x.error = "";
+           //--------- PS++ Read by  line (cr/lf)/ Skipped HTTP control answer and get answer from language tool
+           for(var i = 0; i < 10; i += 1){
+                rep = x.readln(9999);
+                if (x.eof) break;
+                if (rep.charAt(0) == "{") break;
+            }
+            if (!x.eof){
+                var EndGet = x.read(99999);
+            }
+            x.close();
+           //----------------------------------
+           AllOK = true;
+           try {
+                this.JSON_content =  rep;
+                this.JSON_object =  JSON.parse (this.JSON_content);
+                this.JSON_exists = true;
+        }
+        catch (err) {
+            AllOK = false;
+            $.writeln (err.message);
+        }
+//            this.f.writeln(" ! " + rep + " !" + x.error);
+      } else {
+          alert("Error Open: " + Url + " message:" +x.error);
+      }
+      //----------------------------------
+      if (!AllOK)
+      {
+            alert("Some error with communication: " + Url + " message:" +x.error);
+      } else
         if ( this.existsJson () ) {
             if ( this.JSON_object.matches.length > 0 ) {
                 /// после каждого дополнения смещение увеличивается на эту длину
@@ -162,6 +234,7 @@ var myapp = {
                     var one = this.JSON_object.matches [k];
                     var pgf = this.getPgfByOffset (one.offset + additional);
                     var textRange;
+//                    alert(pgf.ToString());
                     if (pgf) {
                         var textLoc = new TextLoc();
                         textLoc.obj = pgf;
@@ -192,6 +265,7 @@ var myapp = {
     },
 };
 
+
 /// MENU
 var mMenu = app.GetNamedMenu("!MakerMainMenu") ;
 var undoSpellMenu =mMenu.DefineAndAddMenu("SpellChecking",  "SpellChecking");
@@ -200,14 +274,9 @@ undoSpellMenu.DefineAndAddCommand(2, "cmdUndo", "Undo", "");
 UpdateMenus();
 function Command (cmd) {
     myapp.init (app.ActiveDoc, app);
-    myapp.openJson (script_file_path + "/JSONString.json");
+//    myapp.openJson (script_file_path + "/JSONString.json");
     if ( cmd == "1" ) {
-        if ( myapp.existsJson () ) {
-            myapp.matchesIterate ();
-        }
-        else {
-            alert ( 'Json not found' );
-        }
+        myapp.matchesIterate ();
     }
     else if ( cmd == "2" ) {
         while ( myapp.undo () == DOING_REMOVE );
