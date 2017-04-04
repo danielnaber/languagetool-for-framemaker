@@ -1,285 +1,120 @@
-#include "json2.js"
-#include "array.js"
-
+﻿//
 if ( DOING_REMOVE == undefined && DOING_REMOVE_STYLE == undefined && DOING_NONE == undefined ) {
     const DOING_REMOVE = 1, DOING_REMOVE_STYLE = 2, DOING_NONE = 3;
 }
 
+#include "./sp_worker/json2.js"
+#include "./sp_worker/array.js"
+
 var doc = app.ActiveDoc;
 var script_file = File($.fileName);
 var script_file_path = script_file.path;
+var scanned = false;
+var SPgf     = [];
+var SReplace = [];
+var SMessage = [];
+var SOffset  = [];
+var SLen     = [];
+var MyNumPgf = 0;
 
-var myapp = {
-    //-------------- PS++
-    logfile: function (d, a) {
-       this.f = new File ("c:\\Users\\Win7\\Documents\\log.txt");
-       this.f.open("w");
-       if (this.f.error){
-           alert ("File error:" + this.f.error + " in " + this.f.name);
-      }
-      this.f.writeln("Test");
-   },
-    //--------------
-    init: function (d, a) {
-        this.document = d;
-        this.app = a;
-        this.firstpgf = this.document.MainFlowInDoc.FirstTextFrameInFlow.FirstPgf;
-        this.origLength = this.getTextLen ();
-        this.spellCheckStyle = this.document.GetNamedCharFmt("SpellChecking").ObjectValid ()  ?  this.document.GetNamedCharFmt("SpellChecking").GetProps () : false;
-        this.spellReplaceStyle = this.document.GetNamedCharFmt("SpellReplacement").ObjectValid ()  ?  this.document.GetNamedCharFmt("SpellReplacement").GetProps () : false;    
-        this.spellMessageStyle = this.document.GetNamedCharFmt("SpellMessage").ObjectValid ()  ?  this.document.GetNamedCharFmt("SpellMessage").GetProps () : false;    
-        this.defaultStyle = this.document.GetNamedCharFmt("Default").ObjectValid ()  ?  this.document.GetNamedCharFmt("Default").GetProps () : false;            
-        this.spellStyles = ["SpellChecking", "SpellReplacement", "SpellMessage"];
-    },
-    undoDoing: function (charTag, textRange) {
-        if ( this.spellStyles.indexOf (charTag) != -1 ) {
-            switch (charTag) {
-                case "SpellMessage":
-                    this.document.Clear (0);
-                    return DOING_REMOVE;
-                case "SpellChecking":
-                    if ( this.defaultStyle )
-                        this.document.SetTextProps (textRange, this.defaultStyle);
-                    return DOING_REMOVE_STYLE;
-                default:
-                    return DOING_NONE;
-            }
-        }
-        else {
-            return DOING_NONE;
-        }
-    },
-    undo: function () {
-        var pgf = this.firstpgf;
-        while(pgf.ObjectValid()) {
-            var textList = pgf.GetText (Constants.FTI_CharPropsChange);  
-            var begOffset = 0, endOffset = 0, textRange;  
-            for (var i = 0; i < textList.length; i += 1) {  
-                endOffset = textList[i].offset;  
-                if (endOffset  > begOffset) {  
-                    textRange = new TextRange(new TextLoc (pgf, begOffset), new TextLoc (pgf, endOffset));  
-                    this.document.TextSelection = textRange;  
-                    var charTag = this.document.GetTextPropVal(textRange.beg, Constants.FP_CharTag).propVal.sval; 
-                    var doing = this.undoDoing (charTag, textRange);
-                    begOffset = endOffset;
-                    if (doing == DOING_REMOVE)
-                        return DOING_REMOVE;
-                }  
-            }  
-            textRange = new TextRange(new TextLoc (pgf, begOffset), new TextLoc (pgf, Constants.FV_OBJ_END_OFFSET));  
-            this.document.TextSelection = textRange;  
-            var charTag = this.document.GetTextPropVal(textRange.beg, Constants.FP_CharTag).propVal.sval;
-            var doing = this.undoDoing (charTag, textRange);
-            pgf = pgf.NextPgfInFlow;
-            if (doing == DOING_REMOVE)
-                return DOING_REMOVE;
-        }
-        return DOING_NONE;
-    },
-    getPgfsCnt: function () {
-        var pgf = this.firstpgf;
-        var cnt = 1;
-        while (pgf.ObjectValid()) {
-            cnt++;
-            pgf = pgf.NextPgfInFlow;
-        }
-        return cnt;
-    },
-    openJson: function ( fpath ) {
-        this.JSON_file = File ( fpath );
-        this.JSON_object = null;
-        this.JSON_content = null;
-        this.JSON_exists = false;
-        try {
-            if ( this.JSON_file !== false ) {
-                this.JSON_file.open ('r');
-                this.JSON_content =  this.JSON_file.read ();
-                this.JSON_object =  JSON.parse (this.JSON_content);
-                this.JSON_exists = true;
-            }
-        }
-        catch (err) {
-            $.writeln (err.message);
-        }
-        return this.JSON_exists;
-    },
-    existsJson: function () {
-        return this.JSON_exists;
-    },
-    getJsonObject: function () {
-        if ( this.existsJson () ) {
-            return this.JSON_object;
-        }
-        else {
-            return false;
-        }
-    },
-    getTextLen: function () {
-        var pgf = this.firstpgf, length = 0;
-        while ( pgf.ObjectValid() ) {
-            var pgfEnd = pgf.GetText(Constants.FTI_PgfEnd);
-            if ( pgfEnd.len > 0 ) {
-                length += pgfEnd [0].offset;
-            }
-            pgf = pgf.NextPgfInFlow;
-        }
-        return length;
-    },
-    getTextLenOriginal: function () {
-        return this.origLength;
-    },
-    getCharacter: function (offset) {
-    },
-    getPgfByOffset: function (offset) {
-        if ( this.getTextLen ()  >= offset ) {
-            var pgf = this.firstpgf, length = 0, begin = 0;
-            while ( pgf.ObjectValid() ) {
-                var pgfEnd = pgf.GetText(Constants.FTI_PgfEnd);
-                 if ( pgfEnd.len > 0 ) {
-                    length += pgfEnd [0].offset;
-                }
-                if ( length >= offset ) {
-                    this.pgf_local_offset = offset - begin;
-                    return pgf;
-                }
-                begin = length + 2;
-                pgf = pgf.NextPgfInFlow;
-            }
-        }
-        return false;
-    },
-    setSpellcheckStyle: function (textRange) {
-        if ( this.spellCheckStyle ) {
-            this.document.SetTextProps ( textRange, this.spellCheckStyle );
-        }
-    },
-    setSpellReplaceStyle: function (textRange) {
-        if ( this.spellReplaceStyle ) {
-            this.document.SetTextProps ( textRange, this.spellReplaceStyle );
-        }
-    },
-    setSpellMessageStyle: function (textRange) {
-        if ( this.spellMessageStyle ) {
-            this.document.SetTextProps ( textRange, this.spellMessageStyle );
-        }
-    },
-    matchesIterate: function () {
-//--------------------------  PS++ Get text from document (all text)
-        var pgfMain = this.firstpgf;
-        var TxtAll = "";
-            while ( pgfMain.ObjectValid() ) {
-                  var TxtLst = pgfMain.GetText(Constants.FTI_String);
-                  for (var i = 0; i < TxtLst.length; i += 1) {  
-                         var s = TxtLst[i].sdata; 
-                         TxtAll += s;
-                  }
-                  pgfMain = pgfMain.NextPgfInFlow;
-            }
-//--------------------------    PS++    Send text to server
-        var AllOK = false;
-        var x = new Socket();
-        var rep = "";
-        var EndOfGet = " HTTP/1.1\r\n\r\n";
-        var Url = "127.0.0.1:8081";
-        if (x.open (Url,"BINARY")) {
-           x.timeout=10;
-           var OutTxt = TxtAll;
-           //-------- PS++ Here we replace all forbiddens symbols
-           OutTxt = OutTxt.replace(/%/g, "%25");
-           OutTxt = OutTxt.replace(/\s/g, "%20");
-           OutTxt = OutTxt.replace(/\(/g, "%28");
-           OutTxt = OutTxt.replace(/)/g, "%29");
-           OutTxt = OutTxt.replace(/\\/g, "%5C");
-           OutTxt = OutTxt.replace(/\"/g, "%22");
-           OutTxt = OutTxt.replace(/\'/g, "%27");
-           //--------------
-           x.write("GET /v2/check?language=en&text=my+" + OutTxt);
-           x.write(EndOfGet);
-           x.error = "";
-           //--------- PS++ Read by  line (cr/lf)/ Skipped HTTP control answer and get answer from language tool
-           for(var i = 0; i < 10; i += 1){
-                rep = x.readln(9999);
-                if (x.eof) break;
-                if (rep.charAt(0) == "{") break;
-            }
-            if (!x.eof){
-                var EndGet = x.read(99999);
-            }
-            x.close();
-           //----------------------------------
-           AllOK = true;
-           try {
-                this.JSON_content =  rep;
-                this.JSON_object =  JSON.parse (this.JSON_content);
-                this.JSON_exists = true;
-        }
-        catch (err) {
-            AllOK = false;
-            $.writeln (err.message);
-        }
-//            this.f.writeln(" ! " + rep + " !" + x.error);
-      } else {
-          alert("Error Open: " + Url + " message:" +x.error);
-      }
-      //----------------------------------
-      if (!AllOK)
-      {
-            alert("Some error with communication: " + Url + " message:" +x.error);
-      } else
-        if ( this.existsJson () ) {
-            if ( this.JSON_object.matches.length > 0 ) {
-                /// после каждого дополнения смещение увеличивается на эту длину
-                var additional = 0; 
-                for ( k in this.JSON_object.matches ) {
-                    var one = this.JSON_object.matches [k];
-                    var pgf = this.getPgfByOffset (one.offset + additional);
-                    var textRange;
-//                    alert(pgf.ToString());
-                    if (pgf) {
-                        var textLoc = new TextLoc();
-                        textLoc.obj = pgf;
-                        textLoc.offset = this.pgf_local_offset;
-                        var replacement = one.replacements.length ? one.replacements [0].value : '';
-                        if (replacement.length) {
-                            textRange = new TextRange();
-                            textRange.beg.obj = pgf;
-                            textRange.beg.offset =textLoc.offset;
-                            textRange.end.obj = pgf;
-                            textRange.end.offset = textLoc.offset + one.length;     
-                            this.setSpellcheckStyle (textRange);
-                        }
-                        var append = "{" + one.message + "}";
-                        /// после каждого дополнения смещение увеличивается на эту длину
-                        additional += append.length;
-                        this.document.AddText(textLoc, append);
-                        textRange = new TextRange();
-                        textRange.beg.obj = pgf;
-                        textRange.beg.offset =textLoc.offset;
-                        textRange.end.obj = pgf;
-                        textRange.end.offset = textLoc.offset + append.length;     
-                        this.setSpellMessageStyle (textRange);
-                    }
-                }
-            }
-        }
-    },
-};
-
-
+SPgf.length     = 0;
+SReplace.length = 0;
+SMessage.length = 0;
+SOffset.length  = 0;
+SLen.length     = 0;
+//
+#include "./sp_worker/sc.jsx"
 /// MENU
 var mMenu = app.GetNamedMenu("!MakerMainMenu") ;
 var undoSpellMenu =mMenu.DefineAndAddMenu("SpellChecking",  "SpellChecking");
 undoSpellMenu.DefineAndAddCommand(1, "cmdSpell", "Spell", "");
 undoSpellMenu.DefineAndAddCommand(2, "cmdUndo", "Undo", "");
 UpdateMenus();
+
+
+//Notification(Constants.FA_Note_BackToUser,true);
+//Notification(Constants.FA_Note_DisplayClientTiDialog,true); 
+//Notification(Constants.FA_Note_UpdateAllClientTi,true); 
+//Notification(Constants.FA_Note_UpdateClientTi,true); 
+//Notification(Constants.FA_Note_PreMouseCommand,true); 
+Notification(Constants.FA_Note_PostMouseCommand,true); 
+function Notify(note, objnot, sparam, iparam)
+{
+#include "./sp_worker/Window.jsx"
+             switch (note) {
+                         case Constants.FA_Note_BackToUser:  // на любое мышкино нажатие + старт
+                                alert("BackToUser:" + sparam + " i:" + iparam);
+                               break;
+                         case Constants.FA_Note_DisplayClientTiDialog:  // 
+                                alert(".FA_Note_DisplayClientTiDialog " + sparam + " i:" + iparam);
+                               break;
+                         case Constants.FA_Note_UpdateAllClientTi:  // 
+                                alert("FA_Note_UpdateAllClientTi " + sparam + " i:" + iparam);
+                               break;
+                         case Constants.FA_Note_UpdateClientTi:  // 
+                                alert(".FA_Note_UpdateClientTi:" + sparam + " i:" + iparam);
+                               break;
+                         case Constants.FA_Note_PreMouseCommand:  // мышиное тыкание до
+                               alert("PreMouseCommand:" + sparam + " o:" + objnot.TextSelection.beg.offset + " i:" + iparam);
+//                               ReturnValue(Constants.FR_CancelOperation);
+                               ReturnValue(Constants.FR_CancelInsertElementOperation);
+                               break;
+                         case Constants.FA_Note_PostMouseCommand:  // мышиное тыкание после
+//                               alert("PostMouseCommand:" + sparam + " Beg:" + objnot.TextSelection.beg.offset + " End:" + objnot.TextSelection.beg.obj.UserString);
+                               if (scanned)
+                               {
+                                   for (var i = 0; i < SOffset.length; i++)
+                                   {
+                                       Log("sc.log","Offs:" + objnot.TextSelection.beg.offset + " look:" + SOffset[i] + " obj:" + objnot.TextSelection.beg.obj);
+                                       if (objnot.TextSelection.beg.offset  >= SOffset[i] &&
+                                           objnot.TextSelection.end.offset <= (SOffset[i] + SLen[i]))
+                                        {
+                                            var sa = DynamicScriptUI.prototype.run(i);
+                                            break;
+                                        }
+                                   }
+                               }
+                               break;
+                               
+              }
+} 
+var FileIsOk = true;
+function Log(logFile,textLine)
+{
+   if (FileIsOk)
+   {
+       file = new File ("C:\\1\\"+logFile);
+       if (file.open("a+", "TEXT", "????") !=  "undefined")
+       {
+           file.write(textLine+"\r");
+           file.close();
+       }
+       else
+       {
+           FileIsOk = false;
+       }
+   }
+}
 function Command (cmd) {
     myapp.init (app.ActiveDoc, app);
-//    myapp.openJson (script_file_path + "/JSONString.json");
+    SPgf.length     = 0;
+    SReplace.length = 0;
+    SMessage.length = 0;
+    SOffset.length  = 0;
+    SLen.length     = 0;
     if ( cmd == "1" ) {
+//        alert ("Spelling h!");
+//        Notification(Constants.FA_Note_PreMouseCommand,true); 
         myapp.matchesIterate ();
     }
     else if ( cmd == "2" ) {
+//           alert ("Undo here!");
+//        Notification(Constants.FA_Note_PreMouseCommand,false); 
         while ( myapp.undo () == DOING_REMOVE );
+    }
+    else
+    {
+           alert ("Unknown!");
     }
 };
 /// END MENU
