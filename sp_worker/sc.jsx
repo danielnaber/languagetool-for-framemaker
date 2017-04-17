@@ -12,6 +12,7 @@ var myapp = {
         this.spellMessageStyle = this.document.GetNamedCharFmt("SpellMessage").ObjectValid ()  ?  this.document.GetNamedCharFmt("SpellMessage").GetProps () : false;    
         this.defaultStyle = this.document.GetNamedCharFmt("Default").ObjectValid ()  ?  this.document.GetNamedCharFmt("Default").GetProps () : false;            
         this.spellStyles = ["SpellChecking", "SpellReplacement", "SpellMessage"];
+        Log("sc.log","SSStyle:" + this.spellCheckStyle + " RStyle:" + this.spellReplaceStyle + " DStyle:" + this.defaultStyle + " SStyle:" + this.spellStyles);
     },
     undoDoing: function (charTag, textRange) {
         scanned  = false;
@@ -221,11 +222,14 @@ var myapp = {
                 var additional = 0; 
                 var lenrep     = 0;
                 Log("sc.log","Length:" + this.JSON_object.matches.length + " Matches:" + this.JSON_object.matches);
-                for ( k in this.JSON_object.matches ) {
-                    var one = this.JSON_object.matches [k];
-                    var pgf = this.getPgfByOffset (one.offset + additional);
+                for ( k in this.JSON_object.matches ) 
+                {
+                    var one  = this.JSON_object.matches [k];
+                    var pgf  = this.getPgfByOffset (one.offset + additional);
+                    var offs = -1;
                     var textRange;
-                    if (pgf) {
+                    if (pgf) 
+                    {
                         if (pgf.UserString == "")
                         {
                             pgf.UserString = MyNumPgf.toString();
@@ -234,43 +238,79 @@ var myapp = {
                         textLoc.obj = pgf;
                         textLoc.offset = this.pgf_local_offset;
                         var replacement = one.replacements.length ? one.replacements [0].value : '';
-                        if (replacement.length) {
-                            Log("sc.log","Replace:" + replacement.length + " Val:" + one.replacements [0].value + " Tot:" + one.replacements);
-                            textRange = new TextRange();
-                            pgf.Underlining = Constants.FV_CB_SINGLE_UNDERLINE;
-                            textRange.beg.obj = pgf;
-                            textRange.beg.offset =textLoc.offset;
-                            pgf.Underlining = Constants.FV_CB_NO_UNDERLINE;
-                            textRange.end.obj = pgf;
-                            textRange.end.offset = textLoc.offset + one.length;     
-                            this.setSpellcheckStyle (textRange);
-                            //!!!
-                            lenrep = replacement.length;
-                            SReplace.push(one.replacements [0].value);
-                            SPgf.push(textRange);
+//
+                        Log("sc.log","Replace:" + replacement.length + " Val:" + one.replacements [0].value + " Tot:" + one.replacements + " Offs:" + textLoc.offset + " Rid:" + one.rule.id);
+                        offs = textLoc.offset;
+                        var NotDoubleFlag = one.rule.id == "ENGLISH_WORD_REPEAT_RULE"?false:true;
+                        // Ищем оффсет до первого пробела слева.
+                        while (offs > 0)
+                        {
+                              if (TxtAll.charAt(offs-1) == ' ' ||
+                                  TxtAll.charAt(offs-1) == ',' ||
+                                  TxtAll.charAt(offs-1) == '.' ||
+                                  TxtAll.charAt(offs-1) == '?' ||
+                                  TxtAll.charAt(offs-1) == '!' )
+                              {
+                                  if (NotDoubleFlag)
+                                  {
+                                      break;
+                                  }
+                              }
+                              NotDoubleFlag = true;
+                              Log("sc.log","Find:" + TxtAll.charAt(offs) + " offs:" + offs);
+                              offs = offs - 1;
                         }
+                        textRange = new TextRange();
+                        pgf.Underlining = Constants.FV_CB_SINGLE_UNDERLINE;
+                        textRange.beg.obj = pgf;
+//                            textRange.beg.offset = textLoc.offset;
+                        textRange.beg.offset = offs;
+                        textRange.end.obj = pgf;
+                        textRange.end.offset = textLoc.offset + one.length;     
+                        this.setSpellcheckStyle (textRange);
+//                            pgf.Underlining = Constants.FV_CB_NO_UNDERLINE;
+                        var pgfF  = this.getPgfByOffset (textLoc.offset + one.length);
+                        txtRng = new TextRange();
+                        pgfF.Underlining = Constants.FV_CB_NO_UNDERLINE;
+                        txtRng.beg.obj = pgfF;
+                        txtRng.beg.offset = textLoc.offset + one.length;
+                        txtRng.end.obj = pgfF;
+                        txtRng.end.offset = txtRng.beg.offset + 1;     
+                        this.setSpellcheckStyle (txtRng);
+                        Log("sc.log","End:" + (txtRng.beg.offset + 1));
+                            //!!!
+                        lenrep = replacement.length;
+                        SReplace.push(one.replacements [0].value);
+                        SPgf.push(textRange);
+//
                         var append = "{" + one.message + "}";
                         Log("sc.log","Len:" + append.length + " Mess:" + one.message + " Num:" + pgf.UserString);
                         /// после каждого дополнения смещение увеличивается на эту длину
+//                        additional += append.length;
+                        var SaveOffs = offs == -1?textLoc.offset:offs;
 /*
-                        additional += append.length;
-                        this.document.AddText(textLoc, append);
+                        this.document.AddText(textLoc, "");
                         textRange = new TextRange();
                         textRange.beg.obj = pgf;
-                        textRange.beg.offset =textLoc.offset;
+                        textRange.beg.offset = SaveOffs + append.length;
+                        pgf.Underlining = Constants.FV_CB_NO_UNDERLINE;
                         textRange.end.obj = pgf;
-                        textRange.end.offset = textLoc.offset + append.length;     
+                        textRange.end.offset = textLoc.offset + 1;     
                         this.setSpellMessageStyle (textRange);
 */
                         // Для выдающего меню
-                        SOffset.push(textLoc.offset);
+                        SOffset.push(SaveOffs);
                         SMessage.push(one.message);
 //                        SPgf.push(pgf);
                         // Или то что слово или просто знак(он = 1 символу)
                         SLen.push(lenrep?lenrep:1);
                         lenrep = 0;
                     }
-                }
+                    else
+                    {
+                        Log("sc.log","PGF NULL!! ofs:" + one.offset + " Mess:" + one.message + " Num:" + k);
+                    }
+                } //for
             }
         }
     },
@@ -283,14 +323,15 @@ var myapp = {
              {
                   var textLoc = new TextLoc();
                   textLoc.obj = pgf;
-                  textLoc.offset = this.pgf_local_offset;
+//                  textLoc.offset = this.pgf_local_offset;
+                  textLoc.offset = SOffset[num];
                   var append = SReplace[num];
                   Log("sc.log","LenNew:" + append.length + " Mess:" + SReplace[num] + " offs:" + textLoc.offset + " one:" + one.message);
                   /// после каждого дополнения смещение увеличивается на эту длину
                   textRange = new TextRange();
 //                  pgf.Underlining = Constants.FV_CB_NO_UNDERLINE;
                   textRange.beg.obj = pgf;
-                  textRange.beg.offset =textLoc.offset;
+                  textRange.beg.offset = textLoc.offset;
                   textRange.end.obj = pgf;
                   textRange.end.offset = textLoc.offset + append.length;     
                   this.document.DeleteText(textRange);

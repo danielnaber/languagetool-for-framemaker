@@ -65,9 +65,9 @@ function Notify(note, objnot, sparam, iparam)
                                {
                                    for (var i = 0; i < SOffset.length; i++)
                                    {
-                                       Log("sc.log","Offs:" + objnot.TextSelection.beg.offset + " look:" + SOffset[i] + " obj:" + objnot.TextSelection.beg.obj);
+                                       Log("sc.log","Offs:" + objnot.TextSelection.beg.offset + " look:" + SOffset[i] + " len:" + SLen[i]);
                                        if (objnot.TextSelection.beg.offset  >= SOffset[i] &&
-                                           objnot.TextSelection.end.offset <= (SOffset[i] + SLen[i]))
+                                           objnot.TextSelection.beg.offset <= (SOffset[i] + SLen[i]))
                                         {
                                             var sa = DynamicScriptUI.prototype.run(i);
                                             break;
